@@ -52,8 +52,10 @@ def core_features() -> frozenset:
 
 
 def _read_only_rules() -> tuple[frozenset, tuple, frozenset]:
+	from orenzi_license.bridges import pos
+
 	exact, prefixes = set(), []
-	for pattern in frappe.get_hooks("orenzi_read_only_modules") or []:
+	for pattern in [*(frappe.get_hooks("orenzi_read_only_modules") or []), *pos.read_only_modules()]:
 		if pattern.endswith("*"):
 			prefixes.append(pattern[:-1])
 		else:
@@ -125,6 +127,9 @@ def store_plan(payload: str, signature: str) -> dict:
 	for field, value in values.items():
 		frappe.db.set_single_value(SNAPSHOT_DOCTYPE, field, value)
 	frappe.local._orenzi_snapshot = _UNSET
+	for path in frappe.get_hooks("orenzi_on_plan") or []:
+		# a product that keeps its own copy of the plan (the POS app reads site_config) updates it here
+		frappe.get_attr(path)(data)
 	return {"ok": True, "seq": seq}
 
 
