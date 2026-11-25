@@ -144,7 +144,9 @@ def _no_snapshot_allows(key: str) -> bool:
 	"""With no plan from a control plane: a dev site allows everything, so does a staging or demo site whose config says
 	`orenzi_all_features` (set by hand, never by the app), and anything else gets only the core. A signed snapshot, once
 	installed, always decides instead."""
-	return bool(frappe.conf.developer_mode or frappe.conf.get("orenzi_all_features")) or key in core_features()
+	return (
+		bool(frappe.conf.developer_mode or frappe.conf.get("orenzi_all_features")) or key in core_features()
+	)
 
 
 def feature_enabled(key: str) -> bool:

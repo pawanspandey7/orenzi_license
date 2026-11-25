@@ -110,9 +110,7 @@ class TestLicence(IntegrationTestCase):
 		self.assertEqual(usage["outlets"], 3)
 
 	def test_on_a_club_site_usage_is_what_it_was(self):
-		self.assertEqual(
-			{"members", "clubs", "org_units", "storage_mb"} - set(plan.collect_usage()), set()
-		)
+		self.assertEqual({"members", "clubs", "org_units", "storage_mb"} - set(plan.collect_usage()), set())
 
 	def test_a_signed_snapshot_with_a_product_key_is_stored(self):
 		self.assertTrue(install(features={"pos.kds": {"enabled": True}})["ok"])
