@@ -22,3 +22,5 @@ scheduler_events = {
 # site has orenzi_pos (bridges/pos.py).
 orenzi_usage_collectors = ["orenzi_license.plan.storage_usage", "orenzi_license.bridges.pos.usage"]
 orenzi_on_plan = ["orenzi_license.bridges.pos.on_plan"]
+# per-day counts (WhatsApp messages Meta billed); empty unless the site has wa_inbox (bridges/wa.py)
+orenzi_daily_counters = ["orenzi_license.bridges.wa.daily_counts"]

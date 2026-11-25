@@ -52,10 +52,11 @@ def core_features() -> frozenset:
 
 
 def _read_only_rules() -> tuple[frozenset, tuple, frozenset]:
-	from orenzi_license.bridges import pos
+	from orenzi_license.bridges import pos, wa
 
 	exact, prefixes = set(), []
-	for pattern in [*(frappe.get_hooks("orenzi_read_only_modules") or []), *pos.read_only_modules()]:
+	bridged = [*pos.read_only_modules(), *wa.read_only_modules()]
+	for pattern in [*(frappe.get_hooks("orenzi_read_only_modules") or []), *bridged]:
 		if pattern.endswith("*"):
 			prefixes.append(pattern[:-1])
 		else:
@@ -236,6 +237,19 @@ def collect_usage() -> dict:
 	return usage
 
 
+def collect_daily() -> dict:
+	"""Counts that belong to a day rather than to now (messages sent): {'YYYY-MM-DD': {metric: n}}, merged from every
+	product's `orenzi_daily_counters`. The control plane sums them over a period for Metered prices."""
+	merged: dict = {}
+	for path in frappe.get_hooks("orenzi_daily_counters") or []:
+		try:
+			for day, values in (frappe.get_attr(path)() or {}).items():
+				merged.setdefault(day, {}).update(values)
+		except Exception:
+			frappe.log_error(title=f"Orenzi daily counter {path} failed")
+	return merged
+
+
 def push_usage() -> bool:
 	"""Daily job: report usage to the control plane if this site is wired to one."""
 	import requests
@@ -245,9 +259,11 @@ def push_usage() -> bool:
 	slug = frappe.conf.get("orenzi_tenant")
 	if not (url and secret and slug):
 		return False
-	payload = json.dumps(
-		{"tenant": slug, "usage": collect_usage(), "at": str(now_datetime())}, sort_keys=True
-	)
+	body = {"tenant": slug, "usage": collect_usage(), "at": str(now_datetime())}
+	daily = collect_daily()
+	if daily:
+		body["daily"] = daily
+	payload = json.dumps(body, sort_keys=True)
 	response = requests.post(
 		f"{url.rstrip('/')}/api/method/orenzi_saas.api.report_usage",
 		data={"payload": payload, "signature": sign(secret, payload)},
