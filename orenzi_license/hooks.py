@@ -11,7 +11,10 @@ doc_events = {
 	"*": {
 		"validate": "orenzi_license.plan.block_writes_when_read_only",
 		"on_trash": "orenzi_license.plan.block_writes_when_read_only",
-	}
+	},
+	# the WhatsApp plan's switches and user cap (bridges/wa.py); these doctypes exist only where wa_inbox is
+	"WA Inbox Settings": {"validate": "orenzi_license.bridges.wa.enforce_settings"},
+	"User": {"validate": "orenzi_license.bridges.wa.check_user_limit"},
 }
 
 scheduler_events = {
@@ -20,7 +23,11 @@ scheduler_events = {
 
 # what this app itself reports; products add their own (see README). The POS bridge reports nothing unless the
 # site has orenzi_pos (bridges/pos.py).
-orenzi_usage_collectors = ["orenzi_license.plan.storage_usage", "orenzi_license.bridges.pos.usage"]
-orenzi_on_plan = ["orenzi_license.bridges.pos.on_plan"]
+orenzi_usage_collectors = [
+	"orenzi_license.plan.storage_usage",
+	"orenzi_license.bridges.pos.usage",
+	"orenzi_license.bridges.wa.usage",
+]
+orenzi_on_plan = ["orenzi_license.bridges.pos.on_plan", "orenzi_license.bridges.wa.on_plan"]
 # per-day counts (WhatsApp messages Meta billed); empty unless the site has wa_inbox (bridges/wa.py)
 orenzi_daily_counters = ["orenzi_license.bridges.wa.daily_counts"]

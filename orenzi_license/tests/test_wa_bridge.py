@@ -47,6 +47,50 @@ class TestWaBridge(IntegrationTestCase):
 			{"2027-03-01": {"wa_marketing": 2}, "2027-03-02": {"wa_utility": 1}, "2027-03-03": {}},
 		)
 
+	def test_the_plan_keeps_off_what_it_does_not_include_and_caps_the_rest(self):
+		class Meta:
+			def has_field(self, field):
+				return True
+
+		class Settings(frappe._dict):
+			meta = Meta()
+
+			def set(self, key, value):  # as a Document does
+				self[key] = value
+
+		doc = Settings(
+			auto_assign=1, send_welcome_message=1, csat_enabled=1, transcription_enabled=1, ai_enabled=1,
+			ai_intent_labels_enabled=1, broadcast_daily_cap=50000, ai_daily_limit=0,
+		)  # fmt: skip
+		snap = {"features": {"wa.automation": {"enabled": True}, "wa.broadcast": {"enabled": True}},
+				"limits": {"broadcast_daily": 1000, "ai_daily": 0}}  # fmt: skip
+		on = {"wa.automation", "wa.broadcast"}
+		with (
+			patch.object(wa, "installed", return_value=True),
+			patch.object(wa, "_snapshot", return_value=snap),
+			patch.object(wa, "_allowed", side_effect=lambda key: key in on),
+		):
+			wa.enforce_settings(doc)
+		self.assertEqual((doc.auto_assign, doc.send_welcome_message), (1, 1))  # automation is in the plan
+		self.assertEqual((doc.csat_enabled, doc.transcription_enabled, doc.ai_enabled), (0, 0, 0))
+		self.assertEqual(doc.broadcast_daily_cap, 1000)
+
+	def test_inbox_users_beyond_the_plan_are_refused(self):
+		user = frappe._dict(name="new@shop.test", enabled=1, roles=[frappe._dict(role="WA Inbox Agent")])
+		snap = {"limits": {"users": 2}}
+		with (
+			patch.object(wa, "installed", return_value=True),
+			patch.object(wa, "_snapshot", return_value=snap),
+		):
+			with patch.object(wa, "_inbox_users", return_value={"a@shop.test"}):
+				wa.check_user_limit(user)  # the second user: fine
+			with patch.object(wa, "_inbox_users", return_value={"a@shop.test", "b@shop.test"}):
+				with self.assertRaises(wa.UserLimitReached):
+					wa.check_user_limit(user)
+			user.roles = [frappe._dict(role="Sales User")]
+			with patch.object(wa, "_inbox_users", return_value={"a@shop.test", "b@shop.test"}):
+				wa.check_user_limit(user)  # not an inbox user: no limit
+
 	def test_a_suspended_site_cannot_send(self):
 		with patch.object(wa, "installed", return_value=True):
 			self.assertTrue(plan.is_protected("WhatsApp Message", "Frappe Whatsapp"))

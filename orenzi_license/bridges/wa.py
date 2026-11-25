@@ -21,10 +21,92 @@ from frappe.utils import add_days, getdate, today
 COUNT_DAYS = 3
 READ_ONLY_MODULES = ("Frappe Whatsapp", "WA Inbox")
 _CATEGORY_RE = re.compile(r"[^a-z0-9_]+")
+INBOX_ROLES = ("WA Inbox Admin", "WA Inbox Supervisor", "WA Inbox Agent")
+# a plan feature -> the WA Inbox Settings switches it allows; without the feature they are kept off
+FEATURE_SWITCHES = {
+	"wa.automation": ("auto_assign", "send_welcome_message", "send_away_message", "reassign_offline_chats"),
+	"wa.csat": ("csat_enabled",),
+	"wa.transcription": ("transcription_enabled",),
+	"wa.ai": ("ai_enabled", "ai_intent_labels_enabled"),
+}
+SETTINGS = "WA Inbox Settings"
+
+
+class UserLimitReached(frappe.ValidationError):
+	pass
 
 
 def installed() -> bool:
 	return "wa_inbox" in frappe.get_installed_apps()
+
+
+def usage() -> dict:
+	"""The inbox's users (what the plan caps), as a count the site has now."""
+	if not installed():
+		return {}
+	return {"users": len(_inbox_users())}
+
+
+def _inbox_users(exclude: str | None = None) -> set:
+	rows = frappe.db.sql(
+		"""select distinct u.name from `tabUser` u join `tabHas Role` r on r.parent = u.name and r.parenttype = 'User'
+		where u.enabled = 1 and r.role in %(roles)s and u.name not in ('Administrator', 'Guest')""",
+		{"roles": INBOX_ROLES},
+	)
+	return {name for (name,) in rows if name != exclude}
+
+
+def _snapshot():
+	from orenzi_license import plan
+
+	return plan.get_snapshot()
+
+
+def _allowed(feature: str) -> bool:
+	from orenzi_license import plan
+
+	return plan.feature_enabled(feature)
+
+
+def enforce_settings(doc, method=None) -> None:
+	"""WA Inbox Settings validate: a switch the plan does not include stays off, and the broadcast and AI caps stay
+	within the plan's limits. Without a snapshot (a dev site) nothing is forced."""
+	if not installed() or _snapshot() is None:
+		return
+	for feature, fields in FEATURE_SWITCHES.items():
+		if not _allowed(feature):
+			for field in fields:
+				if doc.meta.has_field(field):
+					doc.set(field, 0)
+	limits = _snapshot().get("limits") or {}
+	for field, metric in (("broadcast_daily_cap", "broadcast_daily"), ("ai_daily_limit", "ai_daily")):
+		cap = int(limits.get(metric) or 0)
+		if cap and doc.meta.has_field(field) and (not doc.get(field) or int(doc.get(field)) > cap):
+			doc.set(field, cap)
+	if not _allowed("wa.broadcast") and doc.meta.has_field("broadcast_daily_cap"):
+		doc.broadcast_daily_cap = 0
+
+
+def check_user_limit(doc, method=None) -> None:
+	"""User validate: giving someone an inbox role beyond the plan's `users` limit is refused."""
+	if not installed() or doc.name in ("Administrator", "Guest") or not doc.enabled:
+		return
+	if not any(r.role in INBOX_ROLES for r in doc.get("roles") or []):
+		return
+	snap = _snapshot()
+	cap = int(((snap or {}).get("limits") or {}).get("users") or 0)
+	if cap and len(_inbox_users(exclude=doc.name)) + 1 > cap:
+		frappe.throw(
+			frappe._("Your plan allows up to {0} inbox users. Upgrade to add more.").format(cap),
+			UserLimitReached,
+		)
+
+
+def on_plan(data: dict) -> None:
+	"""After a new snapshot: save the inbox settings once, so enforce_settings switches off what the plan dropped."""
+	if not installed() or not frappe.db.exists("DocType", SETTINGS):
+		return
+	frappe.get_single(SETTINGS).save(ignore_permissions=True)
 
 
 def read_only_modules() -> tuple:
@@ -86,9 +168,7 @@ def initialize(customer: dict) -> dict:
 			}
 		)
 		user.insert(ignore_permissions=True)
-		roles = [
-			r for r in ("System Manager", "WA Inbox Manager", "WA Inbox Agent") if frappe.db.exists("Role", r)
-		]
+		roles = [r for r in ("System Manager", "WA Inbox Admin") if frappe.db.exists("Role", r)]
 		user.add_roles(*roles)
 		created = True
 	frappe.db.set_single_value("System Settings", "setup_complete", 1)
