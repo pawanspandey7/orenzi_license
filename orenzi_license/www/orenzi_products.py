@@ -2,6 +2,7 @@
 form for the others. The offers and prices come from the control plane (orenzi_license.products)."""
 
 import frappe
+from frappe.sessions import get_csrf_token
 
 from orenzi_license import products
 
@@ -126,7 +127,7 @@ def get_context(context):
 			p["annual_text"] = t["annual"].format(free)
 			p["submit_text"] = t["submit"].format(p["name"])
 	context.intro = t["intro"].format(context.trial_days)
-	context.csrf_token = frappe.sessions.get_csrf_token()
+	context.csrf_token = get_csrf_token()
 	context.no_header = 1
 	context.no_breadcrumbs = 1
 	return context
