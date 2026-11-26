@@ -12,10 +12,12 @@ import time
 
 import frappe
 from frappe import _
+from frappe.model.document import Document
 
 from orenzi_license.plan import sign
 
 TIMEOUT = 15
+MENU_LABEL = "Orenzi products"  # the desk user-menu item (hooks.py standard_navbar_items)
 
 
 class NotWired(frappe.ValidationError):
@@ -109,3 +111,17 @@ def request_product(product: str, plan: str, billing_interval: str = "Monthly") 
 			"requested_by": {"email": user.email or user.name, "full_name": user.full_name or ""},
 		},
 	)
+
+
+def hide_menu_item(bootinfo) -> None:
+	"""boot_session hook: the desk's user menu shows "Orenzi products" only to the people who may use the page.
+	Frappe does not apply the item's own condition to that menu, so the item is taken out of this user's copy of the
+	navbar settings."""
+	settings = bootinfo.get("navbar_settings")
+	if not settings or can_manage():
+		return
+	settings = settings.as_dict() if isinstance(settings, Document) else dict(settings)
+	settings["settings_dropdown"] = [
+		row for row in settings.get("settings_dropdown") or [] if row.get("item_label") != MENU_LABEL
+	]
+	bootinfo.navbar_settings = settings

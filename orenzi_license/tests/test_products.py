@@ -141,3 +141,21 @@ class TestAddProductFromSite(IntegrationTestCase):
 		with self.assertRaises(frappe.Redirect):
 			page.get_context(frappe._dict())
 		self.assertIn("redirect-to=/orenzi-products", frappe.local.flags.redirect_location)
+
+	def test_the_desk_menu_item_is_shown_only_to_the_people_who_may_use_it(self):
+		user("lic.owner@shop.test", "System Manager")
+		user("lic.cashier@shop.test")
+		settings = frappe._dict(
+			settings_dropdown=[
+				frappe._dict(item_label="My Settings"),
+				frappe._dict(item_label=products.MENU_LABEL, route="/orenzi-products"),
+			]
+		)
+		for who, expected in (("lic.owner@shop.test", 2), ("lic.cashier@shop.test", 1)):
+			frappe.set_user(who)
+			boot = frappe._dict(navbar_settings=frappe._dict(settings))
+			products.hide_menu_item(boot)
+			labels = [row["item_label"] for row in boot.navbar_settings["settings_dropdown"]]
+			self.assertEqual(len(labels), expected, who)
+			self.assertIn("My Settings", labels)
+		self.assertEqual(len(settings.settings_dropdown), 2)  # the shared settings are not changed
