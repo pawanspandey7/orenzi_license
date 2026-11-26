@@ -9,6 +9,8 @@ dependency on any product.
 - Makes the site read-only (no edits, no deletes) when the account is Suspended or Cancelled, or when the snapshot is
   30 days past `valid_until`.
 - Pushes the site's usage to the control plane every day.
+- Serves `/orenzi-products`, where the people who manage the account see its Orenzi products and ask for another
+  one (a trial that an Orenzi officer approves). It is also in the desk's user menu for System Managers.
 
 Each product says what is its own through hooks in its `hooks.py`:
 
@@ -22,6 +24,9 @@ orenzi_usage_collectors = ["my_app.usage.collect"]
 # what read-only mode protects: module names ("Orenzi *" matches by prefix) and doctypes
 orenzi_read_only_modules = ["Orenzi *"]
 orenzi_read_only_doctypes = ["Sales Invoice", "POS Invoice"]
+
+# besides System Managers, who may add a product from /orenzi-products
+orenzi_account_roles = ["Platform Admin"]
 ```
 
 Club code keeps importing `orenzi_core.plan`, which is this module under its old name.

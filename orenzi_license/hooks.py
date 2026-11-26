@@ -31,3 +31,15 @@ orenzi_usage_collectors = [
 orenzi_on_plan = ["orenzi_license.bridges.pos.on_plan", "orenzi_license.bridges.wa.on_plan"]
 # per-day counts (WhatsApp messages Meta billed); empty unless the site has wa_inbox (bridges/wa.py)
 orenzi_daily_counters = ["orenzi_license.bridges.wa.daily_counts"]
+
+# the Add product page (www/orenzi-products, products.py) in the desk's user menu; the page itself checks who may
+# use it (System Managers and the products' `orenzi_account_roles`)
+standard_navbar_items = [
+	{
+		"item_label": "Orenzi products",
+		"item_type": "Route",
+		"route": "/orenzi-products",
+		"condition": "frappe.user.has_role('System Manager')",
+		"is_standard": 1,
+	}
+]

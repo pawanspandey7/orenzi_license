@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="{{ lang }}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>{{ t.title }} · Orenzi</title>
+<style>
+	:root {
+		--bg: #f6f4ef; --card: #ffffff; --ink: #1d2433; --muted: #5b6475; --line: #d9d5cc;
+		--brand: #17406b; --brand-ink: #ffffff; --focus: #c77d12; --ok: #1f6f43; --bad: #a3261b;
+	}
+	@media (prefers-color-scheme: dark) {
+		:root { --bg: #12161d; --card: #1b212b; --ink: #eef0f4; --muted: #a9b1c0; --line: #303846;
+			--brand: #7fb0e6; --brand-ink: #0e1a28; --focus: #f0b35a; --ok: #7ed3a2; --bad: #ff8f84; }
+	}
+	* { box-sizing: border-box; }
+	body { margin: 0; background: var(--bg); color: var(--ink);
+		font: 16px/1.55 system-ui, -apple-system, "Segoe UI", "Noto Sans", "Noto Sans Devanagari", sans-serif; }
+	main { max-width: 640px; margin: 0 auto; padding: 24px 16px 48px; }
+	.top { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 20px; }
+	.brand { font-weight: 700; font-size: 20px; color: var(--ink); text-decoration: none; }
+	.langs a { color: var(--muted); margin-left: 10px; font-size: 14px; }
+	.langs a[aria-current] { color: var(--ink); font-weight: 600; text-decoration: none; }
+	h1 { font-size: 28px; line-height: 1.2; margin: 0 0 8px; }
+	h2 { font-size: 20px; margin: 28px 0 10px; }
+	h3 { font-size: 18px; margin: 0 0 4px; }
+	.lead, .note, .card p.small { color: var(--muted); }
+	.lead { margin: 0 0 6px; }
+	.note { font-size: 14px; margin-top: 12px; }
+	.card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 20px; margin-bottom: 12px; }
+	.mine { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 14px 20px; }
+	.chip { font-size: 14px; border: 1px solid var(--line); border-radius: 999px; padding: 3px 10px; white-space: nowrap; }
+	fieldset { border: 0; padding: 0; margin: 14px 0 0; }
+	legend { font-weight: 600; padding: 0; margin-bottom: 6px; }
+	.choices { display: grid; gap: 8px; }
+	.choice { display: flex; gap: 10px; align-items: flex-start; border: 1px solid var(--line);
+		border-radius: 8px; padding: 10px 12px; cursor: pointer; }
+	.choice input { margin-top: 5px; }
+	.choice b { display: block; }
+	.choice small { color: var(--muted); }
+	input:focus-visible, button:focus-visible, a:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+	button { margin-top: 18px; width: 100%; padding: 13px 16px; font: inherit; font-weight: 700;
+		background: var(--brand); color: var(--brand-ink); border: 0; border-radius: 8px; cursor: pointer; }
+	button[disabled] { opacity: .65; cursor: progress; }
+	.msg { margin-top: 14px; font-weight: 600; }
+	.msg.bad { color: var(--bad); }
+	.msg.ok { color: var(--ok); }
+</style>
+</head>
+<body>
+<main>
+	<div class="top">
+		<a class="brand" href="/">Orenzi</a>
+		<nav class="langs" aria-label="Language">
+			{% for code, label in lang_names.items() %}
+			<a href="?lang={{ code }}" lang="{{ code }}" {% if code == lang %}aria-current="true"{% endif %}>{{ label }}</a>
+			{% endfor %}
+		</nav>
+	</div>
+
+	<h1>{{ t.title }}</h1>
+	<p class="lead">{{ intro }}</p>
+
+	{% if problem %}
+	<div class="card"><p>{{ problem }}</p></div>
+	{% else %}
+		{% if mine %}
+		<h2>{{ t.yours }}</h2>
+		{% for p in mine %}
+		<div class="card mine"><b>{{ p.name | e }}</b><span class="chip">{{ p.status_text | e }}</span></div>
+		{% endfor %}
+		{% endif %}
+
+		<h2>{{ t.add }}</h2>
+		{% if offers.blocked %}
+		<div class="card"><p>{{ t.blocked }}</p></div>
+		{% elif not addable %}
+		<div class="card"><p>{{ t.nothing }}</p></div>
+		{% else %}
+			{% for p in addable %}
+			<div class="card">
+				<form class="add" data-name="{{ p.name | e }}" novalidate>
+					<input type="hidden" name="product" value="{{ p.product | e }}">
+					<h3>{{ p.name | e }}</h3>
+					<p class="small">{{ p.intro | e }}</p>
+					<fieldset>
+						<legend>{{ t.plan }}</legend>
+						<div class="choices">
+							{% for plan in p.plans %}
+							<label class="choice">
+								<input type="radio" name="plan" value="{{ plan.name | e }}" {% if loop.first %}checked{% endif %}>
+								<span><b>{{ plan.title | e }} · {{ plan.price_text | e }}</b>
+								{% if plan.members %}<small>{{ plan.members | e }}</small>{% endif %}</span>
+							</label>
+							{% endfor %}
+						</div>
+						{% if p.unit_note %}<p class="note">{{ p.unit_note | e }}</p>{% endif %}
+					</fieldset>
+					<fieldset>
+						<legend>{{ t.interval }}</legend>
+						<div class="choices">
+							<label class="choice"><input type="radio" name="billing_interval" value="Monthly" checked> <span><b>{{ t.monthly }}</b></span></label>
+							<label class="choice"><input type="radio" name="billing_interval" value="Annual"> <span><b>{{ p.annual_text | e }}</b></span></label>
+						</div>
+					</fieldset>
+					<button type="submit">{{ p.submit_text | e }}</button>
+					<p class="msg" role="status" hidden></p>
+				</form>
+			</div>
+			{% endfor %}
+		{% endif %}
+	{% endif %}
+</main>
+{% if addable and not problem and not offers.blocked %}
+<script>
+(() => {
+	const T = {{ {"sending": t.sending, "done": t.done, "error": t.error} | tojson }};
+	const csrf = {{ csrf_token | tojson }};
+	function serverMessage(data) {
+		try {
+			const msgs = JSON.parse(data._server_messages || "[]").map((m) => JSON.parse(m).message);
+			const d = document.createElement("div");
+			d.innerHTML = msgs.join(" ");
+			return d.textContent || "";
+		} catch (e) {
+			return "";
+		}
+	}
+	for (const form of document.querySelectorAll("form.add")) {
+		const button = form.querySelector("button");
+		const msg = form.querySelector(".msg");
+		const label = button.textContent;
+		form.addEventListener("submit", async (e) => {
+			e.preventDefault();
+			msg.hidden = true;
+			button.disabled = true;
+			button.textContent = T.sending;
+			try {
+				const res = await fetch("/api/method/orenzi_license.products.request_product", {
+					method: "POST",
+					body: new URLSearchParams(new FormData(form)),
+					headers: { "Accept": "application/json", "X-Frappe-CSRF-Token": csrf },
+				});
+				const data = await res.json().catch(() => ({}));
+				if (res.ok) {
+					for (const el of form.querySelectorAll("fieldset, button")) el.remove();
+					msg.className = "msg ok";
+					msg.textContent = T.done.replace("{0}", form.dataset.name);
+					msg.hidden = false;
+					return;
+				}
+				msg.className = "msg bad";
+				msg.textContent = serverMessage(data) || T.error;
+			} catch (e2) {
+				msg.className = "msg bad";
+				msg.textContent = T.error;
+			}
+			msg.hidden = false;
+			button.disabled = false;
+			button.textContent = label;
+		});
+	}
+})();
+</script>
+{% endif %}
+</body>
+</html>
